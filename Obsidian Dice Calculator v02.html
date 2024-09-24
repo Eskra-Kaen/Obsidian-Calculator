@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsidian Dice Calculator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        input[type="number"], select {
+            width: 100%;
+            padding: 5px;
+            margin-top: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+        }
+        .substitution-container {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .checkbox-group label {
+            display: inline-flex;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Obsidian Dice Calculator</h1>
+
+    <form id="calculatorForm">
+        <h2>Attack Roll</h2>
+        <label>
+            Attack Stance:
+            <select id="attackStance">
+                <option value="false">Other</option>
+                <option value="true">Attack</option>
+            </select>
+        </label>
+        
+        <label>
+            Yellow Dices:
+            <input type="number" id="yellowDice" min="0" value="0">
+        </label>
+        <label>
+            Red Dices:
+            <input type="number" id="redDice" min="0" value="0">
+        </label>
+
+        <div class="substitution-container">
+            <h3>Options</h3>
+        	<label>
+            		From:
+        	</label>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" name="attackFrom" value="eye"> Eye
+                </label>
+                <label>
+                    <input type="checkbox" name="attackFrom" value="th"> Lightning
+                </label>
+                <label>
+                    <input type="checkbox" name="attackFrom" value="b"> Blank
+                </label>
+            </div>
+        	<label>
+            		To:
+        	</label>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" name="attackTo" value="ww"> Light Hit x2
+                </label>
+                <label>
+                    <input type="checkbox" name="attackTo" value="w"> Light Hit                </label>
+                <label>
+                    <input type="checkbox" name="attackTo" value="h"> Heavy Hit
+                </label>
+            </div>
+        </div>
+
+        <h2>Defense Roll</h2>
+        <label>
+            Defense Stance:
+            <select id="defenseStance">
+                <option value="false">Other</option>
+                <option value="true">Defense</option>
+            </select>
+        </label>
+        <label>
+            White Dices:
+            <input type="number" id="whiteDice" min="0" value="0">
+        </label>
+        <label>
+            Blue Dices:
+            <input type="number" id="blueDice" min="0" value="0">
+        </label>
+
+        <div class="substitution-container">
+            <h3>Options</h3>
+        	<label>
+            		From:
+        	</label>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" name="defenseFrom" value="eye"> Eye
+                </label>
+                <label>
+                    <input type="checkbox" name="defenseFrom" value="th"> Lightning
+                </label>
+                <label>
+                    <input type="checkbox" name="defenseFrom" value="b"> Blank
+                </label>
+            </div>
+        	<label>
+            		To:
+        	</label>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" name="defenseTo" value="s"> Defense
+                </label>
+                <label>
+                    <input type="checkbox" name="defenseTo" value="ev"> Dodge
+                </label>
+            </div>
+        </div>
+
+        <button type="submit">Calculate</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        const originalYellowDice = ['ww', 'ww', 'w', 'w', 'ew', 'th', 'eye', 'b'];
+        const originalRedDice = ['h', 'h', 'h', 'h', 'eh', 'eh', 'th', 'eye'];
+        const originalWhiteDice = ['s', 'ess', 'ess', 'ev', 'th', 'th', 'eye', 'b'];
+        const originalBlueDice = ['ev', 'ev', 'eye', 'eye', 'th', 'b', 'b', 'b'];
+
+        function rollDice(dice, count) {
+            let result = [];
+            for (let i = 0; i < count; i++) {
+                result.push(dice[Math.floor(Math.random() * dice.length)]);
+            }
+            return result;
+        }
+
+        function substituteDice(dice, fromValues, toValues) {
+            return dice.map(face => {
+                const index = fromValues.indexOf(face);
+                return index !== -1 ? toValues[index] : face;
+            });
+        }
+
+        function calculateProbability(attackStance, yellowCount, redCount, defenseStance, whiteCount, blueCount, attackSubstitution, defenseSubstitution, iterations = 100000) {
+            let successfulAttacks = 0;
+            let successfulHits = 0;
+            let failedAttacksButHit = 0;
+            let totalEye = 0;
+            let totalTh = 0;
+            let originalTotalEye = 0;
+            let originalTotalTh = 0;
+
+            // Apply substitutions
+            let modifiedYellowDice = substituteDice(originalYellowDice, attackSubstitution.from, attackSubstitution.to);
+            let modifiedRedDice = substituteDice(originalRedDice, attackSubstitution.from, attackSubstitution.to);
+            let modifiedWhiteDice = substituteDice(originalWhiteDice, defenseSubstitution.from, defenseSubstitution.to);
+            let modifiedBlueDice = substituteDice(originalBlueDice, defenseSubstitution.from, defenseSubstitution.to);
+
+            for (let i = 0; i < iterations; i++) {
+                let attackRoll = [...rollDice(modifiedYellowDice, yellowCount), ...rollDice(modifiedRedDice, redCount)];
+                let defenseRoll = [...rollDice(modifiedWhiteDice, whiteCount), ...rollDice(modifiedBlueDice, blueCount)];
+                let originalAttackRoll = [...rollDice(originalYellowDice, yellowCount), ...rollDice(originalRedDice, redCount)];
+
+                // Count 'eye' and 'th' in modified attack roll
+                totalEye += attackRoll.filter(r => r === 'eye').length;
+                totalTh += attackRoll.filter(r => r === 'th').length;
+
+                // Count 'eye' and 'th' in original attack roll
+                originalTotalEye += originalAttackRoll.filter(r => r === 'eye').length;
+                originalTotalTh += originalAttackRoll.filter(r => r === 'th').length;
+
+                let weakAttacks = attackRoll.filter(r => r === 'w' || r === 'ww').length + 
+                                  attackRoll.filter(r => r === 'ww').length;
+                let strongAttacks = attackRoll.filter(r => r === 'h').length;
+                
+                if (attackStance) {
+                    weakAttacks += attackRoll.filter(r => r === 'ew').length;
+                    strongAttacks += attackRoll.filter(r => r === 'eh').length;
+                }
+
+                let evades = defenseRoll.filter(r => r === 'ev').length;
+                let shields = defenseRoll.filter(r => r === 's').length;
+
+                if (defenseStance) {
+                    shields += defenseRoll.filter(r => r === 'ess').length * 2;
+                }
+
+                // Evades cancel both weak and strong attacks
+                let remainingWeakAttacks = Math.max(0, weakAttacks - evades);
+                let remainingStrongAttacks = Math.max(0, strongAttacks - (evades - (weakAttacks - remainingWeakAttacks)));
+
+                // Shields only cancel weak attacks
+                remainingWeakAttacks = Math.max(0, remainingWeakAttacks - shields);
+
+                let hit = (weakAttacks > 0 && shields > 0) || strongAttacks > 0;
+                let attack = remainingWeakAttacks > 0 || remainingStrongAttacks > 0;
+
+                if (attack) successfulAttacks++;
+                if (hit) successfulHits++;
+                if (!attack && hit) failedAttacksButHit++;
+            }
+
+            const totalDice = yellowCount + redCount;
+            const expectedEye = totalEye / iterations;
+            const expectedTh = totalTh / iterations;
+            const originalExpectedEye = originalTotalEye / iterations;
+            const originalExpectedTh = originalTotalTh / iterations;
+
+            return {
+                successfulAttackAndHit: successfulAttacks / iterations,
+                failedAttackButHit: failedAttacksButHit / iterations,
+                failedAttackAndHit: 1 - (successfulHits / iterations),
+                expectedEye: expectedEye,
+                expectedTh: expectedTh,
+                originalExpectedEye: originalExpectedEye,
+                originalExpectedTh: originalExpectedTh
+            };
+        }
+
+        document.getElementById('calculatorForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const attackStance = document.getElementById('attackStance').value === 'true';
+            const defenseStance = document.getElementById('defenseStance').value === 'true';
+            const yellowCount = parseInt(document.getElementById('yellowDice').value);
+            const redCount = parseInt(document.getElementById('redDice').value);
+            const whiteCount = parseInt(document.getElementById('whiteDice').value);
+            const blueCount = parseInt(document.getElementById('blueDice').value);
+
+            const attackFromValues = Array.from(document.querySelectorAll('input[name="attackFrom"]:checked')).map(el => el.value);
+            const attackToValues = Array.from(document.querySelectorAll('input[name="attackTo"]:checked')).map(el => el.value);
+            const defenseFromValues = Array.from(document.querySelectorAll('input[name="defenseFrom"]:checked')).map(el => el.value);
+            const defenseToValues = Array.from(document.querySelectorAll('input[name="defenseTo"]:checked')).map(el => el.value);
+
+            const attackSubstitution = { from: attackFromValues, to: attackToValues };
+            const defenseSubstitution = { from: defenseFromValues, to: defenseToValues };
+
+            const result = calculateProbability(attackStance, yellowCount, redCount, defenseStance, whiteCount, blueCount, attackSubstitution, defenseSubstitution);
+
+            document.getElementById('result').innerHTML = `
+                <h2>Result</h2>
+                <p>Success Attack & OnHit: ${(result.successfulAttackAndHit * 100).toFixed(2)}%</p>
+                <p>Fail Attack / Success OnHit: ${(result.failedAttackButHit * 100).toFixed(2)}%</p>
+                <p>Expected Eye ${result.originalExpectedEye.toFixed(2)}</p>
+                <p>Expected Lightning: ${result.originalExpectedTh.toFixed(2)}</p>
+            `;
+        });
+    </script>
+</body>
+</html>
